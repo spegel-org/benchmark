@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	// "golang.org/x/exp/slices"
+	"golang.org/x/exp/slices"
 
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
@@ -48,12 +48,12 @@ func createPlot(result measure.Result, path string) error {
 		p.Title.Padding = vg.Points(10)
 		p.Y.Label.Text = "Pod Number"
 		p.X.Label.Text = "Time [ms]"
-		// slices.SortFunc(bench.Measurements, func(a, b Measurement) int {
-		// 	if a.Start == b.Start {
-		// 		return a.Stop.Compare(b.Stop)
-		// 	}
-		// 	return a.Start.Compare(b.Start)
-		// })
+		slices.SortFunc(bench.Measurements, func(a, b measure.Measurement) int {
+			if a.Start == b.Start {
+				return a.Stop.Compare(b.Stop)
+			}
+			return a.Start.Compare(b.Start)
+		})
 		zeroTime := bench.Measurements[0].Start
 		max := int64(0)
 		min := int64(0)
