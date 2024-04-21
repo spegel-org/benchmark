@@ -4,8 +4,7 @@ go 1.22.1
 
 require (
 	github.com/alexflint/go-arg v1.4.3
-	github.com/stretchr/testify v1.8.4
-	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f
+	github.com/stretchr/testify v1.9.0
 	gonum.org/v1/plot v0.14.0
 	k8s.io/api v0.30.0
 	k8s.io/apimachinery v0.30.0
@@ -42,6 +41,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f // indirect
 	golang.org/x/image v0.11.0 // indirect
 	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/oauth2 v0.10.0 // indirect
