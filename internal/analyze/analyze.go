@@ -48,7 +48,6 @@ func createPlot(result measure.Result, path string) error {
 		p.Title.Padding = vg.Points(10)
 		p.Y.Min = 0
 		p.Y.Label.Text = "Pod Number"
-		p.X.Label.Text = "Time [ms]"
 		p.X.Label.Padding = 5
 		slices.SortFunc(bench.Measurements, func(a, b measure.Measurement) int {
 			if a.Start == b.Start {
@@ -79,9 +78,7 @@ func createPlot(result measure.Result, path string) error {
 			p.Add(b)
 		}
 		avg := sum / int64(len(bench.Measurements))
-		p.Legend.Add(fmt.Sprintf("Min %d ms", min), emptyThumbnail{})
-		p.Legend.Add(fmt.Sprintf("Max %d ms", max), emptyThumbnail{})
-		p.Legend.Add(fmt.Sprintf("Avg %d ms", avg), emptyThumbnail{})
+		p.X.Label.Text = fmt.Sprintf("Time [ms]\n\nMin: %d ms | Max: %d ms | Avg: %d ms", min, max, avg)
 		plots = append(plots, p)
 	}
 	img := vgimg.New(vg.Points(700), vg.Points(300))
