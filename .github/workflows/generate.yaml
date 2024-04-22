@@ -27,4 +27,4 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: true
-          tags: ghcr.io/spegel-org/spegel:10MB-1
+          tags: ghcr.io/spegel-org/benchmark:10MB-1
