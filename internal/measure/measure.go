@@ -75,6 +75,7 @@ func Measure(ctx context.Context, kubeconfigPath, namespace, identifier, resultD
 		return err
 	}
 	defer func() {
+		//nolint:errcheck // ignore
 		cs.AppsV1().DaemonSets(namespace).Delete(ctx, runName, metav1.DeleteOptions{})
 	}()
 	result := Result{
@@ -162,6 +163,7 @@ func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interf
 		return err
 	}
 	defer func() {
+		//nolint:errcheck // ignore
 		cs.AppsV1().DaemonSets(namespace).Delete(ctx, ds.ObjectMeta.Name, metav1.DeleteOptions{})
 	}()
 	err = wait.PollUntilContextTimeout(ctx, 1*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
@@ -223,7 +225,7 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 				},
 			},
 		}
-		ds, err := cs.AppsV1().DaemonSets(namespace).Create(ctx, ds, metav1.CreateOptions{})
+		_, err = cs.AppsV1().DaemonSets(namespace).Create(ctx, ds, metav1.CreateOptions{})
 		if err != nil {
 			return Benchmark{}, err
 		}

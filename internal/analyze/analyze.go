@@ -108,7 +108,3 @@ func createPlot(result measure.Result, path string) error {
 	}
 	return nil
 }
-
-type emptyThumbnail struct{}
-
-func (emptyThumbnail) Thumbnail(c *draw.Canvas) {}
