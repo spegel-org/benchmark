@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         image_size: [10MB, 100MB, 1GB]
-        layer_count: [1, 5]
+        layer_count: [1, 4]
     runs-on: ubuntu-latest
     steps:
       - name: Setup benchmark
