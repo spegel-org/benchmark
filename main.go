@@ -17,7 +17,7 @@ type MeasureCmd struct {
 	ResultDir      string   `arg:"--result-dir,required"`
 	Name           string   `arg:"--name,required"`
 	KubeconfigPath string   `arg:"--kubeconfig,required"`
-	Namespace      string   `arg:"--namespace,required"`
+	Namespace      string   `arg:"--namespace" default:"spegel-benchmark"`
 	Images         []string `arg:"--images,required"`
 }
 
