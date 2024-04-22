@@ -2,8 +2,10 @@ package generate
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/c2h5oh/datasize"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/daemon"
@@ -15,7 +17,11 @@ import (
 
 const pauseImgName = "registry.k8s.io/pause:3.7"
 
-func Generate(ctx context.Context, imgName string, layerCount int, layerSize int64) error {
+func Generate(ctx context.Context, imgName string, layerCount int, imageSize datasize.ByteSize) error {
+	layerSize := imageSize.Bytes() / uint64(layerCount)
+	if layerSize*uint64(layerCount) != imageSize.Bytes() {
+		return fmt.Errorf("cannot evenly divide image size into layers")
+	}
 	ref, err := name.ParseReference(pauseImgName)
 	if err != nil {
 		return err
@@ -26,7 +32,7 @@ func Generate(ctx context.Context, imgName string, layerCount int, layerSize int
 	}
 	layers := []v1.Layer{}
 	for range layerCount {
-		layer, err := random.Layer(layerSize, types.OCILayer)
+		layer, err := random.Layer(int64(layerSize), types.OCILayer)
 		if err != nil {
 			return err
 		}

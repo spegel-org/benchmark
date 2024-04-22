@@ -18,7 +18,7 @@ import (
 type GenerateCmd struct {
 	ImageName  string            `arg:"--image-name,required"`
 	LayerCount int               `arg:"--layer-count,required"`
-	LayerSize  datasize.ByteSize `arg:"--layer-size,required"`
+	ImageSize  datasize.ByteSize `arg:"--image-size,required"`
 }
 
 type MeasureCmd struct {
@@ -53,7 +53,7 @@ func run(args Arguments) error {
 	defer cancel()
 	switch {
 	case args.Generate != nil:
-		return generate.Generate(ctx, args.Generate.ImageName, args.Generate.LayerCount, int64(args.Generate.LayerSize.Bytes()))
+		return generate.Generate(ctx, args.Generate.ImageName, args.Generate.LayerCount, args.Generate.ImageSize)
 	case args.Measure != nil:
 		return measure.Measure(ctx, args.Measure.KubeconfigPath, args.Measure.Namespace, args.Measure.ResultDir, args.Measure.Images)
 	case args.Analyze != nil:
