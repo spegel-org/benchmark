@@ -271,7 +271,7 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 		Image: image,
 	}
 	for _, pod := range podList.Items {
-		eventList, _ := cs.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{FieldSelector: fmt.Sprintf("involvedObject.name=%s", pod.Name), TypeMeta: metav1.TypeMeta{Kind: "Pod"}})
+		eventList, err := cs.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{FieldSelector: fmt.Sprintf("involvedObject.name=%s", pod.Name), TypeMeta: metav1.TypeMeta{Kind: "Pod"}})
 		if err != nil {
 			return Benchmark{}, err
 		}
