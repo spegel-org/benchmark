@@ -1,0 +1,30 @@
+name: generate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup benchmark
+        uses: jaxxstorm/action-install-gh-release@v1.10.0
+        with: 
+          repo: spegel-org/benchmark
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate image
+        run: benchmark generate --layer-count 1 --image-size "10 MB" --image-name ghcr.io/spegel-org/benchmark:10MB-1
+      - name: Publish multi-arch image
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: ghcr.io/spegel-org/spegel:10MB-1
