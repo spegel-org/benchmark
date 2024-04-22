@@ -303,7 +303,7 @@ func getEvent(events []corev1.Event, reason string) (corev1.Event, error) {
 }
 
 func parsePullMessage(msg string) (time.Duration, error) {
-	r, err := regexp.Compile(`\((.*) including waiting\)`)
+	r, err := regexp.Compile(`\" in (.*) \(`)
 	if err != nil {
 		return 0, err
 	}
