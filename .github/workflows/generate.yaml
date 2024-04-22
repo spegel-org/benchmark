@@ -9,6 +9,10 @@ permissions:
 
 jobs:
   release:
+    strategy:
+      matrix:
+        image_size: [10 MB, 100 MB, 1 GB]
+        layer_count: [1, 5]
     runs-on: ubuntu-latest
     steps:
       - name: Setup benchmark
@@ -22,6 +26,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate image
-        run: benchmark generate --layer-count 1 --image-size "10 MB" --image-name ghcr.io/spegel-org/benchmark:10MB-1
+        run: benchmark generate --layer-count ${{ matrix.layer_count }} --image-size ${{ matrix.image_size }} --image-name ghcr.io/${{ github.repository_owner }}/benchmark:v1-${{ matrix.image_size }}-${{ matrix.layer_count }}
       - name: Publish image
-        run: docker push ghcr.io/spegel-org/benchmark:10MB-1
+        run: docker push ghcr.io/${{ github.repository_owner }}/benchmark:v1-${{ matrix.image_size }}-${{ matrix.layer_count }}
