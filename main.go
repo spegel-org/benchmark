@@ -15,7 +15,6 @@ import (
 
 type MeasureCmd struct {
 	ResultDir      string   `arg:"--result-dir,required"`
-	Name           string   `arg:"--name,required"`
 	KubeconfigPath string   `arg:"--kubeconfig,required"`
 	Namespace      string   `arg:"--namespace" default:"spegel-benchmark"`
 	Images         []string `arg:"--images,required"`
@@ -45,7 +44,7 @@ func run(args Arguments) error {
 	defer cancel()
 	switch {
 	case args.Measure != nil:
-		return measure.Measure(ctx, args.Measure.KubeconfigPath, args.Measure.Namespace, args.Measure.Name, args.Measure.ResultDir, args.Measure.Images)
+		return measure.Measure(ctx, args.Measure.KubeconfigPath, args.Measure.Namespace, args.Measure.ResultDir, args.Measure.Images)
 	case args.Analyze != nil:
 		return analyze.Analyze(ctx, args.Analyze.Path)
 	default:

@@ -23,7 +23,6 @@ import (
 )
 
 type Result struct {
-	Name       string
 	Benchmarks []Benchmark
 }
 
@@ -38,7 +37,7 @@ type Measurement struct {
 	Duration time.Duration
 }
 
-func Measure(ctx context.Context, kubeconfigPath, namespace, identifier, resultDir string, images []string) error {
+func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, images []string) error {
 	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		return err
@@ -78,9 +77,7 @@ func Measure(ctx context.Context, kubeconfigPath, namespace, identifier, resultD
 		//nolint:errcheck // ignore
 		cs.AppsV1().DaemonSets(namespace).Delete(ctx, runName, metav1.DeleteOptions{})
 	}()
-	result := Result{
-		Name: identifier,
-	}
+	result := Result{}
 	for _, image := range images {
 		bench, err := measureImagePull(ctx, cs, dc, namespace, runName, image)
 		if err != nil {
@@ -93,7 +90,7 @@ func Measure(ctx context.Context, kubeconfigPath, namespace, identifier, resultD
 		return err
 	}
 
-	fileName := fmt.Sprintf("%s.json", identifier)
+	fileName := fmt.Sprintf("benchmark-%d.json", time.Now().Unix())
 	file, err := os.Create(path.Join(resultDir, fileName))
 	if err != nil {
 		return err
