@@ -26,6 +26,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate image
-        run: benchmark generate --layer-count ${{ matrix.layer_count }} --image-size ${{ matrix.image_size }} --image-name ghcr.io/${{ github.repository_owner }}/benchmark:v1-${{ matrix.image_size }}-${{ matrix.layer_count }}
+        run: benchmark generate --layer-count ${{ matrix.layer_count }} --image-size "${{ matrix.image_size }}" --image-name ghcr.io/${{ github.repository_owner }}/benchmark:v1-${{ matrix.image_size }}-${{ matrix.layer_count }}
       - name: Publish image
         run: docker push ghcr.io/${{ github.repository_owner }}/benchmark:v1-${{ matrix.image_size }}-${{ matrix.layer_count }}
