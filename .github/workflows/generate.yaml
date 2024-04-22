@@ -11,7 +11,7 @@ jobs:
   release:
     strategy:
       matrix:
-        image_size: [10 MB, 100 MB, 1 GB]
+        image_size: [10MB, 100MB, 1GB]
         layer_count: [1, 5]
     runs-on: ubuntu-latest
     steps:
