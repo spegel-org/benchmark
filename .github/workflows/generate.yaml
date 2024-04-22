@@ -23,8 +23,5 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate image
         run: benchmark generate --layer-count 1 --image-size "10 MB" --image-name ghcr.io/spegel-org/benchmark:10MB-1
-      - name: Publish multi-arch image
-        uses: docker/build-push-action@v5
-        with:
-          push: true
-          tags: ghcr.io/spegel-org/benchmark:10MB-1
+      - name: Publish image
+        run: docker push ghcr.io/spegel-org/benchmark:10MB-1
