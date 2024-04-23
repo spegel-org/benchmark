@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -92,7 +92,7 @@ func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, i
 	}
 
 	fileName := fmt.Sprintf("benchmark-%d.json", time.Now().Unix())
-	file, err := os.Create(path.Join(resultDir, fileName))
+	file, err := os.Create(filepath.Join(resultDir, fileName))
 	if err != nil {
 		return err
 	}
