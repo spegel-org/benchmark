@@ -30,6 +30,7 @@ resource "azurerm_kubernetes_cluster" "this" {
 
   default_node_pool {
     name                         = "default"
+    temporary_name_for_rotation  = "temp"
     zones                        = ["1", "2", "3"]
     orchestrator_version         = var.kubernetes_version
     vm_size                      = var.default_node_pool_vm_size
