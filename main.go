@@ -35,9 +35,9 @@ type AnalyzeCmd struct {
 }
 
 type Arguments struct {
-	Generate *GenerateCmd `arg:"subcommand:generate"`
-	Measure  *MeasureCmd  `arg:"subcommand:measure"`
-	Analyze  *AnalyzeCmd  `arg:"subcommand:analyze"`
+	Generate *GenerateCmd `arg:"subcommand:generate" help:"Generate iamges for benchmarking."`
+	Measure  *MeasureCmd  `arg:"subcommand:measure" help:"Run benchmark measurement."`
+	Analyze  *AnalyzeCmd  `arg:"subcommand:analyze" help:"Analyze benchmark results."`
 }
 
 func main() {
