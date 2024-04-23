@@ -23,18 +23,18 @@ import (
 )
 
 type Result struct {
-	Benchmarks []Benchmark
+	Benchmarks []Benchmark `json:"benchmarks"`
 }
 
 type Benchmark struct {
-	Image        string
-	Measurements []Measurement
+	Image        string        `json:"image"`
+	Measurements []Measurement `json:"measurements"`
 }
 
 type Measurement struct {
-	Start    time.Time
-	Stop     time.Time
-	Duration time.Duration
+	Start    time.Time     `json:"start"`
+	Stop     time.Time     `json:"stop"`
+	Duration time.Duration `json:"duration"`
 }
 
 func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, images []string) error {
