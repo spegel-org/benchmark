@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -109,6 +110,7 @@ func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, i
 }
 
 func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interface, namespace string, images []string) error {
+	logr.FromContextOrDiscard(ctx).Info("clearing images")
 	remove := fmt.Sprintf("crictl rmi %s || true", strings.Join(images, " "))
 	commands := []string{"/bin/sh", "-c", fmt.Sprintf("chroot /host /bin/bash -c '%s'; sleep infinity;", remove)}
 	ds := &appsv1.DaemonSet{
@@ -189,6 +191,8 @@ func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interf
 }
 
 func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interface, namespace, name, image string) (Benchmark, error) {
+	log := logr.FromContextOrDiscard(ctx).WithValues("image", image)
+	log.Info("measuring pull performance")
 	ds, err := cs.AppsV1().DaemonSets(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return Benchmark{}, err
@@ -234,6 +238,7 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 		}
 	}
 
+	log.Info("waiting for rollout completion")
 	err = wait.PollUntilContextTimeout(ctx, 1*time.Second, 30*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		gvr := schema.GroupVersionResource{
 			Group:    "apps",
@@ -249,6 +254,7 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 			return false, err
 		}
 		if res.Status != status.CurrentStatus {
+			log.Info("waiting for rollout", "message", res.Message)
 			return false, nil
 		}
 		return true, nil
@@ -257,6 +263,7 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 		return Benchmark{}, err
 	}
 
+	log.Info("collecting image pull durations")
 	podList, err := cs.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: fmt.Sprintf("app=%s", name)})
 	if err != nil {
 		return Benchmark{}, err
