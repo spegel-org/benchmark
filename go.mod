@@ -1,6 +1,6 @@
 module github.com/spegel-org/benchmark
 
-go 1.22.1
+go 1.22.4
 
 require (
 	github.com/alexflint/go-arg v1.5.0
