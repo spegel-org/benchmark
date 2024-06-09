@@ -3,6 +3,7 @@ package measure
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -55,10 +56,10 @@ func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, i
 	ts := time.Now().Unix()
 	runName := fmt.Sprintf("spegel-benchmark-%d", ts)
 	_, err = cs.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil && !kerrors.IsNotFound(err) {
 		return err
 	}
-	if errors.IsNotFound(err) {
+	if kerrors.IsNotFound(err) {
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespace,
@@ -158,7 +159,7 @@ func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interf
 		},
 	}
 	_, err := cs.AppsV1().DaemonSets(namespace).Create(ctx, ds, metav1.CreateOptions{})
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil && !kerrors.IsNotFound(err) {
 		return err
 	}
 	defer func() {
@@ -194,10 +195,10 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 	log := logr.FromContextOrDiscard(ctx).WithValues("image", image)
 	log.Info("measuring pull performance")
 	ds, err := cs.AppsV1().DaemonSets(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil && !kerrors.IsNotFound(err) {
 		return Benchmark{}, err
 	}
-	if errors.IsNotFound(err) {
+	if kerrors.IsNotFound(err) {
 		ds := &appsv1.DaemonSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name,
@@ -269,7 +270,7 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 		return Benchmark{}, err
 	}
 	if len(podList.Items) == 0 {
-		return Benchmark{}, fmt.Errorf("received empty benchmark pod list")
+		return Benchmark{}, errors.New("received empty benchmark pod list")
 	}
 	bench := Benchmark{
 		Image: image,
@@ -307,13 +308,14 @@ func getEvent(events []corev1.Event, reason string) (corev1.Event, error) {
 }
 
 func parsePullMessage(msg string) (time.Duration, error) {
+	//nolint: gocritic // We should never panic and always check errors.
 	r, err := regexp.Compile(`\" in (.*) \(`)
 	if err != nil {
 		return 0, err
 	}
 	match := r.FindStringSubmatch(msg)
 	if len(match) < 2 {
-		return 0, fmt.Errorf("could not find image pull duration")
+		return 0, errors.New("could not find image pull duration")
 	}
 	s := match[1]
 	d, err := time.ParseDuration(s)

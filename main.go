@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -70,6 +71,6 @@ func run(args Arguments) error {
 	case args.Analyze != nil:
 		return analyze.Analyze(ctx, args.Analyze.Path)
 	default:
-		return fmt.Errorf("unknown command")
+		return errors.New("unknown command")
 	}
 }
