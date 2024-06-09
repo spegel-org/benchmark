@@ -8,6 +8,8 @@ import (
 )
 
 func TestLayerSize(t *testing.T) {
+	t.Parallel()
+
 	layerSize, err := layerSize(4, 1*datasize.GB)
 	require.NoError(t, err)
 	require.Equal(t, int64(268435456), layerSize)

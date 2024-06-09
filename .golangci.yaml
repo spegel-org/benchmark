@@ -1,3 +1,5 @@
+run:
+  timeout: 3m
 linters:
   disable-all: true
   enable:
@@ -9,7 +11,36 @@ linters:
     - unused
     - misspell
     - testifylint
+    - nolintlint
+    - bodyclose
+    - goimports
+    - importas
+    - ireturn
+    - perfsprint
+    - gocritic
+    - paralleltest
 linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+    disable-default-exclusions: true
   govet:
-    enable:
-      - fieldalignment
+    enable-all: true
+    disable:
+      - shadow
+  testifylint:
+    enable-all: true
+  nolintlint:
+    require-explanation: true
+    require-specific: true
+  perfsprint:
+    strconcat: false
+  gocritic:
+    enable-all: true
+    disabled-checks:
+      - importShadow
+      - hugeParam
+      - rangeValCopy
+      - whyNoLint
+      - unnamedResult
+      - httpNoBody

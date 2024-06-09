@@ -56,7 +56,9 @@ func createPlot(result measure.Result, path string) error {
 			return a.Start.Compare(b.Start)
 		})
 		zeroTime := bench.Measurements[0].Start
+		//nolint:gocritic // False positive
 		max := int64(0)
+		//nolint:gocritic // False positive
 		min := int64(0)
 		sum := int64(0)
 		for i, result := range bench.Measurements {

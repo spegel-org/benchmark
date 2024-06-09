@@ -2,7 +2,7 @@ package generate
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/c2h5oh/datasize"
@@ -60,7 +60,7 @@ func Generate(ctx context.Context, imgName string, layerCount int, imageSize dat
 func layerSize(layerCount int, imageSize datasize.ByteSize) (int64, error) {
 	layerSize := imageSize.Bytes() / uint64(layerCount)
 	if layerSize*uint64(layerCount) != imageSize.Bytes() {
-		return 0, fmt.Errorf("cannot evenly divide image size into layers")
+		return 0, errors.New("cannot evenly divide image size into layers")
 	}
 	return int64(layerSize), nil
 }
