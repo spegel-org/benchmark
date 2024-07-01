@@ -3,7 +3,7 @@ module github.com/spegel-org/benchmark
 go 1.22.4
 
 require (
-	github.com/alexflint/go-arg v1.5.0
+	github.com/alexflint/go-arg v1.5.1
 	github.com/c2h5oh/datasize v0.0.0-20231215233829-aa82cc1e6500
 	github.com/go-logr/logr v1.4.2
 	github.com/google/go-containerregistry v0.19.1
