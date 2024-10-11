@@ -12,7 +12,7 @@ require (
 	gonum.org/v1/plot v0.14.0
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
-	k8s.io/client-go v0.31.0
+	k8s.io/client-go v0.31.1
 	sigs.k8s.io/cli-utils v0.35.0
 )
 
