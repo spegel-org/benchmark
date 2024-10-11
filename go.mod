@@ -6,7 +6,7 @@ require (
 	github.com/alexflint/go-arg v1.5.0
 	github.com/c2h5oh/datasize v0.0.0-20231215233829-aa82cc1e6500
 	github.com/go-logr/logr v1.4.2
-	github.com/google/go-containerregistry v0.19.1
+	github.com/google/go-containerregistry v0.20.2
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f
 	gonum.org/v1/plot v0.14.0
@@ -24,7 +24,7 @@ require (
 	github.com/campoy/embedmd v1.0.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/docker/cli v24.0.0+incompatible // indirect
+	github.com/docker/cli v27.1.1+incompatible // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/docker v24.0.9+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
