@@ -10,8 +10,8 @@ require (
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	gonum.org/v1/plot v0.15.0
-	k8s.io/api v0.31.2
-	k8s.io/apimachinery v0.31.2
+	k8s.io/api v0.31.3
+	k8s.io/apimachinery v0.31.3
 	k8s.io/client-go v0.31.1
 	sigs.k8s.io/cli-utils v0.37.2
 )
