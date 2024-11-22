@@ -2,11 +2,11 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "3.107.0"
+      version = "4.5.0"
     }
     local = {
       source  = "hashicorp/local"
-      version = "2.5.1"
+      version = "2.5.2"
     }
   }
 }
@@ -26,7 +26,7 @@ resource "azurerm_kubernetes_cluster" "this" {
   resource_group_name = azurerm_resource_group.this.name
   kubernetes_version  = var.kubernetes_version
   dns_prefix          = "spegelbenchmark"
-  sku_tier            = "Free"
+  sku_tier            = "Standard"
 
   default_node_pool {
     name                         = "default"
@@ -37,7 +37,7 @@ resource "azurerm_kubernetes_cluster" "this" {
     node_count                   = 1
     os_disk_size_gb              = local.vm_skus_disk_size_gb[var.default_node_pool_vm_size]
     os_disk_type                 = "Ephemeral"
-    enable_auto_scaling          = false
+    auto_scaling_enabled         = false
     only_critical_addons_enabled = true
   }
 
