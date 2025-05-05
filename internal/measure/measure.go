@@ -164,7 +164,7 @@ func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interf
 	}
 	defer func() {
 		//nolint:errcheck // ignore
-		cs.AppsV1().DaemonSets(namespace).Delete(ctx, ds.ObjectMeta.Name, metav1.DeleteOptions{})
+		cs.AppsV1().DaemonSets(namespace).Delete(ctx, ds.Name, metav1.DeleteOptions{})
 	}()
 	err = wait.PollUntilContextTimeout(ctx, 1*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		gvr := schema.GroupVersionResource{
@@ -172,7 +172,7 @@ func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interf
 			Version:  "v1",
 			Resource: "daemonsets",
 		}
-		u, err := dc.Resource(gvr).Namespace(namespace).Get(ctx, ds.ObjectMeta.Name, metav1.GetOptions{})
+		u, err := dc.Resource(gvr).Namespace(namespace).Get(ctx, ds.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -292,7 +292,7 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 		if err != nil {
 			return Benchmark{}, err
 		}
-		bench.Measurements = append(bench.Measurements, Measurement{Start: pullingEvent.FirstTimestamp.Time, Stop: pullingEvent.FirstTimestamp.Time.Add(d), Duration: d})
+		bench.Measurements = append(bench.Measurements, Measurement{Start: pullingEvent.FirstTimestamp.Time, Stop: pullingEvent.FirstTimestamp.Add(d), Duration: d})
 	}
 	return bench, nil
 }

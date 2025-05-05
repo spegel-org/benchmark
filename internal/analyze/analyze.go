@@ -50,7 +50,7 @@ func createPlot(result measure.Result, path string) error {
 		p.Y.Label.Text = "Pod Number"
 		p.X.Label.Padding = 5
 		slices.SortFunc(bench.Measurements, func(a, b measure.Measurement) int {
-			if a.Start == b.Start {
+			if a.Start.Equal(b.Start) {
 				return a.Stop.Compare(b.Stop)
 			}
 			return a.Start.Compare(b.Start)
