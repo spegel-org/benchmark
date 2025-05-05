@@ -1,46 +1,63 @@
-run:
-  timeout: 3m
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - misspell
-    - testifylint
-    - nolintlint
     - bodyclose
-    - goimports
-    - importas
-    - ireturn
-    - perfsprint
+    - errcheck
     - gocritic
+    - govet
+    - importas
+    - ineffassign
+    - ireturn
+    - misspell
+    - nolintlint
     - paralleltest
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-    disable-default-exclusions: true
-  govet:
-    enable-all: true
-    disable:
-      - shadow
-  testifylint:
-    enable-all: true
-  nolintlint:
-    require-explanation: true
-    require-specific: true
-  perfsprint:
-    strconcat: false
-  gocritic:
-    enable-all: true
-    disabled-checks:
-      - importShadow
-      - hugeParam
-      - rangeValCopy
-      - whyNoLint
-      - unnamedResult
-      - httpNoBody
+    - perfsprint
+    - staticcheck
+    - testifylint
+    - unused
+  settings:
+    errcheck:
+      disable-default-exclusions: true
+      check-type-assertions: true
+      check-blank: true
+    gocritic:
+      enable-all: true
+      disabled-checks:
+        - importShadow
+        - hugeParam
+        - rangeValCopy
+        - whyNoLint
+        - unnamedResult
+        - httpNoBody
+    govet:
+      disable:
+        - shadow
+      enable-all: true
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    perfsprint:
+      strconcat: false
+    testifylint:
+      enable-all: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
