@@ -40,6 +40,8 @@ type Measurement struct {
 }
 
 func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, images []string) error {
+	log := logr.FromContextOrDiscard(ctx)
+
 	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		return err
@@ -55,6 +57,8 @@ func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, i
 
 	ts := time.Now().Unix()
 	runName := fmt.Sprintf("spegel-benchmark-%d", ts)
+
+	// Create namespace for benchmark.
 	_, err = cs.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 	if err != nil && !kerrors.IsNotFound(err) {
 		return err
@@ -75,9 +79,15 @@ func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, i
 	if err != nil {
 		return err
 	}
+
+	// Run image pull measurements.
 	defer func() {
-		//nolint:errcheck // ignore
-		cs.AppsV1().DaemonSets(namespace).Delete(ctx, runName, metav1.DeleteOptions{})
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err := cs.AppsV1().DaemonSets(namespace).Delete(ctx, runName, metav1.DeleteOptions{})
+		if err != nil {
+			log.Error(err, "could not delete measure daemonset")
+		}
 	}()
 	result := Result{}
 	for _, image := range images {
@@ -87,11 +97,13 @@ func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, i
 		}
 		result.Benchmarks = append(result.Benchmarks, bench)
 	}
+
 	err = clearImages(ctx, cs, dc, namespace, images)
 	if err != nil {
 		return err
 	}
 
+	// Write measurement results.
 	fileName := fmt.Sprintf("benchmark-%d.json", time.Now().Unix())
 	file, err := os.Create(filepath.Join(resultDir, fileName))
 	if err != nil {
@@ -111,9 +123,29 @@ func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, i
 }
 
 func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interface, namespace string, images []string) error {
-	logr.FromContextOrDiscard(ctx).Info("clearing images")
-	remove := fmt.Sprintf("crictl rmi %s || true", strings.Join(images, " "))
-	commands := []string{"/bin/sh", "-c", fmt.Sprintf("chroot /host /bin/bash -c '%s'; sleep infinity;", remove)}
+	log := logr.FromContextOrDiscard(ctx)
+	log.Info("clearing images")
+
+	removeImages := fmt.Sprintf("crictl rmi %s || true", strings.Join(images, " "))
+	script := fmt.Sprintf(`#!/bin/sh
+chroot /host /bin/bash -c '%s'
+echo "Cleanup run"
+sleep infinity &
+wait $!`, removeImages)
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "spegel-clear-image",
+		},
+		Data: map[string]string{
+			"run.sh": script,
+		},
+	}
+	_, err := cs.CoreV1().ConfigMaps(namespace).Create(ctx, cm, metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+
+	filePerm := int32(0o755)
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "spegel-clear-image",
@@ -132,11 +164,16 @@ func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interf
 					Containers: []corev1.Container{
 						{
 							Name:            "clear",
-							Image:           "docker.io/library/alpine:3.18.4@sha256:48d9183eb12a05c99bcc0bf44a003607b8e941e1d4f41f9ad12bdcc4b5672f86",
+							Image:           "docker.io/library/alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c",
 							ImagePullPolicy: "IfNotPresent",
-							Command:         commands,
+							Command:         []string{"/scripts/run.sh"},
 							Stdin:           true,
 							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "scripts",
+									MountPath: "/scripts/run.sh",
+									SubPath:   "run.sh",
+								},
 								{
 									Name:      "host-root",
 									MountPath: "/host",
@@ -145,6 +182,17 @@ func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interf
 						},
 					},
 					Volumes: []corev1.Volume{
+						{
+							Name: "scripts",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "spegel-clear-image",
+									},
+									DefaultMode: &filePerm,
+								},
+							},
+						},
 						{
 							Name: "host-root",
 							VolumeSource: corev1.VolumeSource{
@@ -158,14 +206,24 @@ func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interf
 			},
 		},
 	}
-	_, err := cs.AppsV1().DaemonSets(namespace).Create(ctx, ds, metav1.CreateOptions{})
-	if err != nil && !kerrors.IsNotFound(err) {
+	_, err = cs.AppsV1().DaemonSets(namespace).Create(ctx, ds, metav1.CreateOptions{})
+	if err != nil {
 		return err
 	}
+
 	defer func() {
-		//nolint:errcheck // ignore
-		cs.AppsV1().DaemonSets(namespace).Delete(ctx, ds.Name, metav1.DeleteOptions{})
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err := cs.AppsV1().DaemonSets(namespace).Delete(ctx, ds.Name, metav1.DeleteOptions{})
+		if err != nil {
+			log.Error(err, "could not delete image cleanup daemonset")
+		}
+		err = cs.CoreV1().ConfigMaps(namespace).Delete(ctx, cm.Name, metav1.DeleteOptions{})
+		if err != nil {
+			log.Error(err, "could not delete image cleanup config map")
+		}
 	}()
+
 	err = wait.PollUntilContextTimeout(ctx, 1*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		gvr := schema.GroupVersionResource{
 			Group:    "apps",

@@ -52,7 +52,7 @@ func main() {
 }
 
 func run(args Arguments) error {
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
 	opts := slog.HandlerOptions{
