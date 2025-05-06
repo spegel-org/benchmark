@@ -7,10 +7,10 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
-	"golang.org/x/exp/slices"
-
+	"gonum.org/v1/gonum/stat"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
@@ -48,7 +48,7 @@ func createPlot(result measure.Result, path string) error {
 		p.Title.Padding = vg.Points(10)
 		p.Y.Min = 0
 		p.Y.Label.Text = "Pod Number"
-		p.X.Label.Padding = 5
+		p.X.Label.Padding = 3
 		slices.SortFunc(bench.Measurements, func(a, b measure.Measurement) int {
 			if a.Start.Equal(b.Start) {
 				return a.Stop.Compare(b.Stop)
@@ -56,19 +56,13 @@ func createPlot(result measure.Result, path string) error {
 			return a.Start.Compare(b.Start)
 		})
 		zeroTime := bench.Measurements[0].Start
-		//nolint:gocritic // False positive
-		max := int64(0)
-		//nolint:gocritic // False positive
-		min := int64(0)
+
 		sum := int64(0)
+		durations := []float64{}
 		for i, result := range bench.Measurements {
 			sum += result.Duration.Milliseconds()
-			if i == 0 || result.Duration.Milliseconds() < min {
-				min = result.Duration.Milliseconds()
-			}
-			if i == 0 || result.Duration.Milliseconds() > max {
-				max = result.Duration.Milliseconds()
-			}
+			durations = append(durations, float64(result.Duration.Milliseconds()))
+
 			start := result.Start.Sub(zeroTime)
 			stop := start + result.Duration
 			b, err := plotter.NewBoxPlot(4, float64(len(bench.Measurements)-i-1), plotter.Values{float64(start.Milliseconds()), float64(stop.Milliseconds())})
@@ -79,11 +73,15 @@ func createPlot(result measure.Result, path string) error {
 			b.FillColor = color.Black
 			p.Add(b)
 		}
-		avg := sum / int64(len(bench.Measurements))
-		p.X.Label.Text = fmt.Sprintf("Time [ms]\n\nMin: %d ms | Max: %d ms | Avg: %d ms", min, max, avg)
+		slices.Sort(durations)
+		mean := stat.Mean(durations, nil)
+		p90 := stat.Quantile(0.90, stat.Empirical, durations, nil)
+		p95 := stat.Quantile(0.95, stat.Empirical, durations, nil)
+		p.X.Label.Text = fmt.Sprintf("Time [ms}\n\nMean: %.0f ms | P90: %.0f ms | P95: %.0f ms | Total: %d ms", mean, p90, p95, sum)
 		plots = append(plots, p)
 	}
-	img := vgimg.New(vg.Points(700), vg.Points(300))
+
+	img := vgimg.New(vg.Points(700), vg.Points(350))
 	dc := draw.New(img)
 	t := draw.Tiles{
 		Rows:      1,
