@@ -8,7 +8,7 @@ require (
 	github.com/go-logr/logr v1.4.2
 	github.com/google/go-containerregistry v0.20.3
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
+	gonum.org/v1/gonum v0.16.0
 	gonum.org/v1/plot v0.16.0
 	k8s.io/api v0.33.0
 	k8s.io/apimachinery v0.33.0
