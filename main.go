@@ -26,7 +26,7 @@ type GenerateCmd struct {
 
 type MeasureCmd struct {
 	ResultDir      string   `arg:"--result-dir,required"`
-	KubeconfigPath string   `arg:"--kubeconfig,required"`
+	KubeconfigPath string   `arg:"--kubeconfig,env:KUBECONFIG"`
 	Namespace      string   `arg:"--namespace" default:"spegel-benchmark"`
 	Images         []string `arg:"--images,required"`
 }
@@ -67,6 +67,9 @@ func run(args Arguments) error {
 	case args.Generate != nil:
 		return generate.Generate(ctx, args.Generate.ImageName, args.Generate.LayerCount, args.Generate.ImageSize)
 	case args.Measure != nil:
+		if args.Measure.KubeconfigPath == "" {
+			return errors.New("kubeconfig path cannot be empty")
+		}
 		return measure.Measure(ctx, args.Measure.KubeconfigPath, args.Measure.Namespace, args.Measure.ResultDir, args.Measure.Images)
 	case args.Analyze != nil:
 		return analyze.Analyze(ctx, args.Analyze.Path)
