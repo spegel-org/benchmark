@@ -36,7 +36,7 @@ type AnalyzeCmd struct {
 }
 
 type Arguments struct {
-	Generate *GenerateCmd `arg:"subcommand:generate" help:"Generate iamges for benchmarking."`
+	Generate *GenerateCmd `arg:"subcommand:generate" help:"Generate images for benchmarking."`
 	Measure  *MeasureCmd  `arg:"subcommand:measure" help:"Run benchmark measurement."`
 	Analyze  *AnalyzeCmd  `arg:"subcommand:analyze" help:"Analyze benchmark results."`
 }
