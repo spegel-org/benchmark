@@ -5,16 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"gonum.org/v1/plot"
-	"gonum.org/v1/plot/plotter"
-	"gonum.org/v1/plot/vg"
-	"gonum.org/v1/plot/vg/draw"
-	"gonum.org/v1/plot/vg/vgimg"
+	"github.com/go-echarts/go-echarts/v2/charts"
+	"github.com/go-echarts/go-echarts/v2/opts"
+	"gonum.org/v1/gonum/floats"
+	"gonum.org/v1/gonum/stat"
 
 	"github.com/spegel-org/benchmark/internal/measure"
 )
@@ -51,7 +49,7 @@ func Analyze(ctx context.Context, baselineDir, variantDir, outputDir string) err
 		}
 		ext := filepath.Ext(entry.Name())
 		outputPath := strings.TrimSuffix(entry.Name(), ext)
-		outputPath = fmt.Sprintf("%s.png", outputPath)
+		outputPath = fmt.Sprintf("%s.html", outputPath)
 		outputPath = filepath.Join(outputDir, outputPath)
 		err = createBoxPlot(baseline, variant, outputPath)
 		if err != nil {
@@ -66,8 +64,30 @@ func createBoxPlot(baseline, variant measure.Result, outputPath string) error {
 		return errors.New("results cant have different benchmark counts")
 	}
 
-	plots := []*plot.Plot{}
-	w := vg.Points(30)
+	bp := charts.NewBoxPlot()
+	bp.SetGlobalOptions(
+		charts.WithTitleOpts(opts.Title{Title: "Image Pull Duration"}),
+		charts.WithYAxisOpts(opts.YAxis{Name: "Duration (seconds)", NameLocation: "middle", NameGap: 40}),
+		charts.WithLegendOpts(opts.Legend{Left: "70%"}),
+		charts.WithAnimation(false),
+		charts.WithTooltipOpts(opts.Tooltip{
+			BackgroundColor: "rgba(50,50,50,0.7)",
+			BorderColor:     "#333333",
+			Formatter: opts.FuncOpts(`function (params) {
+				const v = params.value;
+	            return '<span style="color: #fff;">' + [
+	                'Min: ' + v[1].toFixed(3) + ' s',
+	                'P25: ' + v[2].toFixed(3) + ' s',
+	                'Median: ' + v[3].toFixed(3) + ' s',
+	                'P75: ' + v[4].toFixed(3) + ' s',
+	                'Max: ' + v[5].toFixed(3) + ' s'
+	            ].join('<br/>') + '</span>';
+			}`),
+		}),
+	)
+
+	boxData := map[string][]opts.BoxPlotData{}
+	xAxis := []string{}
 	for i := range len(baseline.Benchmarks) {
 		if len(baseline.Benchmarks[i].Measurements) != len(variant.Benchmarks[i].Measurements) {
 			return errors.New("benchmarks cant have different measurement counts")
@@ -76,78 +96,46 @@ func createBoxPlot(baseline, variant measure.Result, outputPath string) error {
 			return errors.New("benchmark images are not the same")
 		}
 
-		p := plot.New()
-		p.Title.Text = baseline.Benchmarks[i].Image
-		p.Title.Padding = vg.Points(10)
-		p.Y.Label.Text = "Pull Time (seconds)"
+		xAxis = append(xAxis, baseline.Benchmarks[i].Image)
 
-		durations := plotter.Values{}
+		durations := []float64{}
 		for _, meas := range baseline.Benchmarks[i].Measurements {
-			durations = append(durations, float64(meas.Duration.Seconds()))
+			durations = append(durations, meas.Duration.Seconds())
 		}
-		boxPlot, err := plotter.NewBoxPlot(w, float64(0), durations)
-		if err != nil {
-			return err
-		}
-		boxPlot.FillColor = color.RGBA{R: 30, G: 144, B: 255, A: 255}
-		p.Add(boxPlot)
+		boxData["Baseline"] = append(boxData["Baseline"], opts.BoxPlotData{Value: createBoxPlotData(durations)})
 
-		durations = plotter.Values{}
+		durations = []float64{}
 		for _, meas := range variant.Benchmarks[i].Measurements {
-			durations = append(durations, float64(meas.Duration.Seconds()))
+			durations = append(durations, meas.Duration.Seconds())
 		}
-		boxPlot, err = plotter.NewBoxPlot(w, float64(1), durations)
-		if err != nil {
-			return err
-		}
-		boxPlot.FillColor = color.RGBA{R: 220, G: 20, B: 60, A: 255}
-		p.Add(boxPlot)
-
-		p.NominalX("Baseline", "Spegel")
-		plots = append(plots, p)
+		boxData["Spegel"] = append(boxData["Spegel"], opts.BoxPlotData{Value: createBoxPlotData(durations)})
 	}
-
-	width := vg.Points(500)
-	height := vg.Points(500)
-	img := vgimg.New(width, height)
-	dc := draw.New(img)
-
-	// Draw shared title.
-	titleStyle := draw.TextStyle{
-		Font:    plot.DefaultFont,
-		Color:   color.Black,
-		XAlign:  draw.XCenter,
-		YAlign:  draw.YTop,
-		Handler: plot.DefaultTextHandler,
+	bp.SetXAxis(xAxis)
+	itemStyles := []opts.ItemStyle{
+		{BorderColor: "#164577", Color: "#9CC1E3"},
+		{BorderColor: "#FAA93B", Color: "#FAEAD4"},
 	}
-	titleStyle.Font.Size = vg.Points(12)
-	titlePoint := vg.Point{X: width / 2, Y: height - vg.Millimeter}
-	dc.FillText(titleStyle, titlePoint, "Image Pull Duration")
-
-	// Draw plots.
-	t := draw.Tiles{
-		Rows:      1,
-		Cols:      len(plots),
-		PadX:      vg.Points(40),
-		PadY:      vg.Millimeter,
-		PadTop:    vg.Points(35),
-		PadBottom: vg.Points(5),
-		PadLeft:   vg.Points(20),
-		PadRight:  vg.Points(20),
-	}
-	canv := plot.Align([][]*plot.Plot{plots}, t, dc)
-	for i, plot := range plots {
-		plot.Draw(canv[0][i])
+	for i, v := range []string{"Baseline", "Spegel"} {
+		bp.AddSeries(v, boxData[v], charts.WithItemStyleOpts(itemStyles[i]))
 	}
 
 	file, err := os.Create(outputPath)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	png := vgimg.PngCanvas{Canvas: img}
-	if _, err := png.WriteTo(file); err != nil {
+	err = bp.Render(file)
+	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func createBoxPlotData(data []float64) []float64 {
+	return []float64{
+		floats.Min(data),
+		stat.Quantile(0.25, stat.Empirical, data, nil),
+		stat.Mean(data, nil),
+		stat.Quantile(0.75, stat.Empirical, data, nil),
+		floats.Max(data),
+	}
 }
