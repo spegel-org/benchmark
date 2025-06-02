@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
@@ -131,6 +132,10 @@ func createBoxPlot(baseline, variant measure.Result, outputPath string) error {
 }
 
 func createBoxPlotData(data []float64) []float64 {
+	if len(data) == 0 {
+		return nil
+	}
+	sort.Float64s(data)
 	return []float64{
 		floats.Min(data),
 		stat.Quantile(0.25, stat.Empirical, data, nil),
