@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -50,7 +49,6 @@ func Analyze(ctx context.Context, baselineDir, variantDir, outputDir string) err
 		}
 		ext := filepath.Ext(entry.Name())
 		outputPath := strings.TrimSuffix(entry.Name(), ext)
-		outputPath = fmt.Sprintf("%s.html", outputPath)
 		outputPath = filepath.Join(outputDir, outputPath)
 		err = createBoxPlot(baseline, variant, outputPath)
 		if err != nil {
@@ -67,24 +65,9 @@ func createBoxPlot(baseline, variant measure.Result, outputPath string) error {
 
 	bp := charts.NewBoxPlot()
 	bp.SetGlobalOptions(
-		charts.WithTitleOpts(opts.Title{Title: "Image Pull Duration"}),
 		charts.WithYAxisOpts(opts.YAxis{Name: "Duration (seconds)", NameLocation: "middle", NameGap: 40}),
 		charts.WithLegendOpts(opts.Legend{Left: "70%"}),
 		charts.WithAnimation(false),
-		charts.WithTooltipOpts(opts.Tooltip{
-			BackgroundColor: "rgba(50,50,50,0.7)",
-			BorderColor:     "#333333",
-			Formatter: opts.FuncOpts(`function (params) {
-				const v = params.value;
-	            return '<span style="color: #fff;">' + [
-	                'Min: ' + v[1].toFixed(3) + ' s',
-	                'P25: ' + v[2].toFixed(3) + ' s',
-	                'Median: ' + v[3].toFixed(3) + ' s',
-	                'P75: ' + v[4].toFixed(3) + ' s',
-	                'Max: ' + v[5].toFixed(3) + ' s'
-	            ].join('<br/>') + '</span>';
-			}`),
-		}),
 	)
 
 	boxData := map[string][]opts.BoxPlotData{}
@@ -120,7 +103,12 @@ func createBoxPlot(baseline, variant measure.Result, outputPath string) error {
 		bp.AddSeries(v, boxData[v], charts.WithItemStyleOpts(itemStyles[i]))
 	}
 
-	file, err := os.Create(outputPath)
+	snippet := bp.RenderSnippet()
+	err := os.WriteFile(outputPath+".json", []byte(snippet.Option), 0o644)
+	if err != nil {
+		return err
+	}
+	file, err := os.Create(outputPath + ".html")
 	if err != nil {
 		return err
 	}
