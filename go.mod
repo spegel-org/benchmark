@@ -7,7 +7,7 @@ toolchain go1.24.3
 require (
 	github.com/alexflint/go-arg v1.5.1
 	github.com/c2h5oh/datasize v0.0.0-20231215233829-aa82cc1e6500
-	github.com/go-echarts/go-echarts/v2 v2.5.4
+	github.com/go-echarts/go-echarts/v2 v2.5.5
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-containerregistry v0.20.5
 	github.com/stretchr/testify v1.10.0
