@@ -26,15 +26,12 @@ import (
 	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 )
 
-type Result struct {
-	Metadata   Metadata    `json:"metadata"`
-	Benchmarks []Benchmark `json:"benchmarks"`
-}
-
-type Metadata struct {
-	Timestamp         time.Time `json:"timestamp"`
-	KubernetesVersion string    `json:"kubernetesVersion"`
-	Nodes             []Node    `json:"nodes"`
+type Suite struct {
+	KubernetesVersion string               `json:"kubernetesVersion"`
+	Name              string               `json:"name"`
+	Timestamp         time.Time            `json:"timestamp"`
+	Benchmarks        map[string]Benchmark `json:"benchmarks"`
+	Nodes             []Node               `json:"nodes"`
 }
 
 type Node struct {
@@ -45,53 +42,22 @@ type Node struct {
 }
 
 type Benchmark struct {
-	Image        string        `json:"image"`
-	Measurements []Measurement `json:"measurements"`
+	Create Measurement `json:"create"`
+	Update Measurement `json:"update"`
 }
 
 type Measurement struct {
+	Image   string   `json:"image"`
+	Samples []Sample `json:"samples"`
+}
+
+type Sample struct {
 	Start    time.Time     `json:"start"`
 	Stop     time.Time     `json:"stop"`
 	Duration time.Duration `json:"duration"`
 }
 
-func Suite(ctx context.Context, kubeconfigPath, namespace, outputDir string) error {
-	registry := "ghcr.io"
-	repository := "spegel-org/benchmark"
-	layerCounts := []int{1, 4}
-	imageSizes := []datasize.ByteSize{datasize.MB * 10, datasize.MB * 100, datasize.GB}
-
-	for _, layerCount := range layerCounts {
-		for _, imageSize := range imageSizes {
-			log := logr.FromContextOrDiscard(ctx).WithValues("layers", layerCount, "size", imageSize.String())
-			imgs := []string{
-				fmt.Sprintf("%s/%s:v1-%s-%d", registry, repository, imageSize.String(), layerCount),
-				fmt.Sprintf("%s/%s:v2-%s-%d", registry, repository, imageSize.String(), layerCount),
-			}
-			log.Info("measurement started")
-			outputPath := filepath.Join(outputDir, fmt.Sprintf("%s-%d.json", imageSize.String(), layerCount))
-			err := run(ctx, kubeconfigPath, namespace, outputPath, imgs)
-			if err != nil {
-				return err
-			}
-			log.Info("measurement completed")
-
-			// Some delay between tests.
-			time.Sleep(3 * time.Second)
-		}
-	}
-
-	return nil
-}
-
-func Measure(ctx context.Context, kubeconfigPath, namespace, outputDir string, images []string) error {
-	outputPath := filepath.Join(outputDir, fmt.Sprintf("benchmark-%d.json", time.Now().Unix()))
-	return run(ctx, kubeconfigPath, namespace, outputPath, images)
-}
-
-func run(ctx context.Context, kubeconfigPath, namespace, outputPath string, images []string) error {
-	log := logr.FromContextOrDiscard(ctx)
-
+func RunSuite(ctx context.Context, kubeconfigPath, namespace, outputDir, suiteName string) error {
 	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		return err
@@ -100,31 +66,21 @@ func run(ctx context.Context, kubeconfigPath, namespace, outputPath string, imag
 	if err != nil {
 		return err
 	}
-	dc, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return err
-	}
-
-	result := Result{
-		Metadata: Metadata{
-			Timestamp: time.Now(),
-		},
-	}
 
 	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(cfg)
 	versionInfo, err := discoveryClient.ServerVersion()
 	if err != nil {
 		return err
 	}
-	result.Metadata.KubernetesVersion = versionInfo.GitVersion
 
+	nodes := []Node{}
 	nodeList, err := cs.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
 	for _, node := range nodeList.Items {
 		if len(node.Spec.Taints) > 0 {
-			log.Info("skipping node with taint", "name", node.Name)
+			logr.FromContextOrDiscard(ctx).Info("skipping node with taint", "name", node.Name)
 			continue
 		}
 		n := Node{
@@ -133,15 +89,116 @@ func run(ctx context.Context, kubeconfigPath, namespace, outputPath string, imag
 			Memory:       node.Status.Capacity.Memory().Value(),
 			CPU:          node.Status.Capacity.Cpu().Value(),
 		}
-		result.Metadata.Nodes = append(result.Metadata.Nodes, n)
+		nodes = append(nodes, n)
 	}
 
-	runName := fmt.Sprintf("spegel-benchmark-%d", result.Metadata.Timestamp.Unix())
+	suite := Suite{
+		Name:              suiteName,
+		Timestamp:         time.Now(),
+		KubernetesVersion: versionInfo.GitVersion,
+		Nodes:             nodes,
+		Benchmarks:        map[string]Benchmark{},
+	}
+	registry := "ghcr.io"
+	repository := "spegel-org/benchmark"
+	layerCounts := []int{1, 4}
+	imageSizes := []datasize.ByteSize{datasize.MB * 10, datasize.MB * 100, datasize.GB}
+	for _, layerCount := range layerCounts {
+		for _, imageSize := range imageSizes {
+			log := logr.FromContextOrDiscard(ctx).WithValues("layers", layerCount, "size", imageSize.String())
+			imgs := []string{
+				fmt.Sprintf("%s/%s:v1-%s-%d", registry, repository, imageSize.String(), layerCount),
+				fmt.Sprintf("%s/%s:v2-%s-%d", registry, repository, imageSize.String(), layerCount),
+			}
+			log.Info("benchmark started")
+			benchmark, err := benchmark(ctx, kubeconfigPath, namespace, imgs[0], imgs[1])
+			if err != nil {
+				return err
+			}
+			k := fmt.Sprintf("%s-%d", imageSize.String(), layerCount)
+			suite.Benchmarks[k] = benchmark
+			log.Info("benchmark completed")
+
+			// Some delay between tests.
+			time.Sleep(3 * time.Second)
+		}
+	}
+
+	fileName := strings.ToLower(suiteName)
+	fileName = strings.ReplaceAll(fileName, ".", "")
+	fileName = strings.ReplaceAll(fileName, " ", "-")
+	path := filepath.Join(outputDir, fileName+".json")
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	encoder := json.NewEncoder(f)
+	err = encoder.Encode(&suite)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func RunMeasure(ctx context.Context, kubeconfigPath, namespace, outputDir string, images []string) error {
+	benchmark, err := benchmark(ctx, kubeconfigPath, namespace, images[0], images[1])
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(outputDir, fmt.Sprintf("benchmark-%d.json", time.Now().Unix()))
+	err = os.MkdirAll(filepath.Dir(path), 0o755)
+	if err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	encoder := json.NewEncoder(f)
+	err = encoder.Encode(&benchmark)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func benchmark(ctx context.Context, kubeconfigPath, namespace, createImage, updateImage string) (Benchmark, error) {
+	log := logr.FromContextOrDiscard(ctx)
+
+	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	if err != nil {
+		return Benchmark{}, err
+	}
+	cs, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return Benchmark{}, err
+	}
+	dc, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return Benchmark{}, err
+	}
+
+	benchmark := Benchmark{
+		Create: Measurement{
+			Image: createImage,
+		},
+		Update: Measurement{
+			Image: updateImage,
+		},
+	}
+	images := []string{
+		benchmark.Create.Image,
+		benchmark.Update.Image,
+	}
+
+	runName := fmt.Sprintf("spegel-benchmark-%d", time.Now().Unix())
 
 	// Create namespace for benchmark.
 	_, err = cs.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 	if err != nil && !kerrors.IsNotFound(err) {
-		return err
+		return Benchmark{}, err
 	}
 	if kerrors.IsNotFound(err) {
 		ns := corev1.Namespace{
@@ -151,13 +208,13 @@ func run(ctx context.Context, kubeconfigPath, namespace, outputPath string, imag
 		}
 		_, err := cs.CoreV1().Namespaces().Create(ctx, &ns, metav1.CreateOptions{})
 		if err != nil {
-			return err
+			return Benchmark{}, err
 		}
 	}
 
 	err = clearImages(ctx, cs, dc, namespace, images)
 	if err != nil {
-		return err
+		return Benchmark{}, err
 	}
 
 	// Run image pull measurements.
@@ -169,39 +226,25 @@ func run(ctx context.Context, kubeconfigPath, namespace, outputPath string, imag
 			log.Error(err, "could not delete measure daemonset")
 		}
 	}()
-	for _, image := range images {
-		bench, err := measureImagePull(ctx, cs, dc, namespace, runName, image)
-		if err != nil {
-			return err
-		}
-		result.Benchmarks = append(result.Benchmarks, bench)
+
+	samples, err := measureImagePull(ctx, cs, dc, namespace, runName, createImage)
+	if err != nil {
+		return Benchmark{}, err
 	}
+	benchmark.Create.Samples = samples
+
+	samples, err = measureImagePull(ctx, cs, dc, namespace, runName, updateImage)
+	if err != nil {
+		return Benchmark{}, err
+	}
+	benchmark.Update.Samples = samples
 
 	err = clearImages(ctx, cs, dc, namespace, images)
 	if err != nil {
-		return err
+		return Benchmark{}, err
 	}
 
-	// Write measurement results.
-	err = os.MkdirAll(filepath.Dir(outputPath), 0o755)
-	if err != nil {
-		return err
-	}
-	file, err := os.Create(outputPath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	b, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return err
-	}
-	_, err = file.Write(b)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return benchmark, nil
 }
 
 func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interface, namespace string, images []string) error {
@@ -331,12 +374,12 @@ wait $!`, removeImages)
 	return nil
 }
 
-func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interface, namespace, name, image string) (Benchmark, error) {
+func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interface, namespace, name, image string) ([]Sample, error) {
 	log := logr.FromContextOrDiscard(ctx).WithValues("image", image)
 	log.Info("measuring pull performance")
 	ds, err := cs.AppsV1().DaemonSets(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil && !kerrors.IsNotFound(err) {
-		return Benchmark{}, err
+		return nil, err
 	}
 	if kerrors.IsNotFound(err) {
 		ds := &appsv1.DaemonSet{
@@ -369,13 +412,13 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 		}
 		_, err = cs.AppsV1().DaemonSets(namespace).Create(ctx, ds, metav1.CreateOptions{})
 		if err != nil {
-			return Benchmark{}, err
+			return nil, err
 		}
 	} else {
 		ds.Spec.Template.Spec.Containers[0].Image = image
 		_, err := cs.AppsV1().DaemonSets(namespace).Update(ctx, ds, metav1.UpdateOptions{})
 		if err != nil {
-			return Benchmark{}, err
+			return nil, err
 		}
 	}
 
@@ -401,40 +444,38 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 		return true, nil
 	})
 	if err != nil {
-		return Benchmark{}, err
+		return nil, err
 	}
 
 	log.Info("collecting image pull durations")
 	podList, err := cs.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: fmt.Sprintf("app=%s", name)})
 	if err != nil {
-		return Benchmark{}, err
+		return nil, err
 	}
 	if len(podList.Items) == 0 {
-		return Benchmark{}, errors.New("received empty benchmark pod list")
+		return nil, errors.New("received empty benchmark pod list")
 	}
-	bench := Benchmark{
-		Image: image,
-	}
+	samples := []Sample{}
 	for _, pod := range podList.Items {
 		eventList, err := cs.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{FieldSelector: fmt.Sprintf("involvedObject.name=%s", pod.Name), TypeMeta: metav1.TypeMeta{Kind: "Pod"}})
 		if err != nil {
-			return Benchmark{}, err
+			return nil, err
 		}
 		pullingEvent, err := getEvent(eventList.Items, "Pulling")
 		if err != nil {
-			return Benchmark{}, err
+			return nil, err
 		}
 		pulledEvent, err := getEvent(eventList.Items, "Pulled")
 		if err != nil {
-			return Benchmark{}, err
+			return nil, err
 		}
 		d, err := parsePullMessage(pulledEvent.Message)
 		if err != nil {
-			return Benchmark{}, err
+			return nil, err
 		}
-		bench.Measurements = append(bench.Measurements, Measurement{Start: pullingEvent.FirstTimestamp.Time, Stop: pullingEvent.FirstTimestamp.Add(d), Duration: d})
+		samples = append(samples, Sample{Start: pullingEvent.FirstTimestamp.Time, Stop: pullingEvent.FirstTimestamp.Add(d), Duration: d})
 	}
-	return bench, nil
+	return samples, nil
 }
 
 func getEvent(events []corev1.Event, reason string) (corev1.Event, error) {

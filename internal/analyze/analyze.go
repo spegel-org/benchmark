@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
@@ -17,40 +16,37 @@ import (
 	"github.com/spegel-org/benchmark/internal/measure"
 )
 
-func Analyze(ctx context.Context, baselineDir, variantDir, outputDir string) error {
-	entries, err := os.ReadDir(baselineDir)
+func Analyze(ctx context.Context, suitePaths []string, outputDir string) error {
+	suites := []measure.Suite{}
+	for _, path := range suitePaths {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		suite := measure.Suite{}
+		err = json.Unmarshal(b, &suite)
+		if err != nil {
+			return err
+		}
+		suites = append(suites, suite)
+	}
+	if len(suites) == 0 {
+		return errors.New("suites is empty")
+	}
+
+	err := os.MkdirAll(outputDir, 0o755)
 	if err != nil {
 		return err
 	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+
+	for k := range suites[0].Benchmarks {
+		benchmarks := []measure.Benchmark{}
+		suiteNames := []string{}
+		for j := range suites {
+			benchmarks = append(benchmarks, suites[j].Benchmarks[k])
+			suiteNames = append(suiteNames, suites[j].Name)
 		}
-		if !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join(baselineDir, entry.Name()))
-		if err != nil {
-			return err
-		}
-		baseline := measure.Result{}
-		err = json.Unmarshal(b, &baseline)
-		if err != nil {
-			return err
-		}
-		b, err = os.ReadFile(filepath.Join(variantDir, entry.Name()))
-		if err != nil {
-			return err
-		}
-		variant := measure.Result{}
-		err = json.Unmarshal(b, &variant)
-		if err != nil {
-			return err
-		}
-		ext := filepath.Ext(entry.Name())
-		outputPath := strings.TrimSuffix(entry.Name(), ext)
-		outputPath = filepath.Join(outputDir, outputPath)
-		err = createBoxPlot(baseline, variant, outputPath)
+		err := createBoxPlot(benchmarks, suiteNames, outputDir, k)
 		if err != nil {
 			return err
 		}
@@ -58,57 +54,43 @@ func Analyze(ctx context.Context, baselineDir, variantDir, outputDir string) err
 	return nil
 }
 
-func createBoxPlot(baseline, variant measure.Result, outputPath string) error {
-	if len(baseline.Benchmarks) != len(variant.Benchmarks) {
-		return errors.New("results cant have different benchmark counts")
-	}
-
+func createBoxPlot(benchmarks []measure.Benchmark, suiteNames []string, outputDir, benchmarkName string) error {
 	bp := charts.NewBoxPlot()
 	bp.SetGlobalOptions(
 		charts.WithYAxisOpts(opts.YAxis{Name: "Duration (seconds)", NameLocation: "middle", NameGap: 40}),
 		charts.WithLegendOpts(opts.Legend{Left: "70%"}),
 		charts.WithAnimation(false),
 	)
+	bp.SetXAxis([]string{"Create", "Update"})
 
-	boxData := map[string][]opts.BoxPlotData{}
-	xAxis := []string{}
-	for i := range len(baseline.Benchmarks) {
-		if len(baseline.Benchmarks[i].Measurements) != len(variant.Benchmarks[i].Measurements) {
-			return errors.New("benchmarks cant have different measurement counts")
-		}
-		if baseline.Benchmarks[i].Image != variant.Benchmarks[i].Image {
-			return errors.New("benchmark images are not the same")
-		}
-
-		xAxis = append(xAxis, baseline.Benchmarks[i].Image)
-
-		durations := []float64{}
-		for _, meas := range baseline.Benchmarks[i].Measurements {
-			durations = append(durations, meas.Duration.Seconds())
-		}
-		boxData["Baseline"] = append(boxData["Baseline"], opts.BoxPlotData{Value: createBoxPlotData(durations)})
-
-		durations = []float64{}
-		for _, meas := range variant.Benchmarks[i].Measurements {
-			durations = append(durations, meas.Duration.Seconds())
-		}
-		boxData["Spegel"] = append(boxData["Spegel"], opts.BoxPlotData{Value: createBoxPlotData(durations)})
-	}
-	bp.SetXAxis(xAxis)
 	itemStyles := []opts.ItemStyle{
 		{BorderColor: "#164577", Color: "#9CC1E3"},
 		{BorderColor: "#FAA93B", Color: "#FAEAD4"},
 	}
-	for i, v := range []string{"Baseline", "Spegel"} {
-		bp.AddSeries(v, boxData[v], charts.WithItemStyleOpts(itemStyles[i]))
+	for i, v := range benchmarks {
+		initialDurations := []float64{}
+		for _, sample := range v.Create.Samples {
+			initialDurations = append(initialDurations, sample.Duration.Seconds())
+		}
+
+		rollingDurations := []float64{}
+		for _, sample := range v.Update.Samples {
+			rollingDurations = append(rollingDurations, sample.Duration.Seconds())
+		}
+
+		data := []opts.BoxPlotData{
+			{Value: createBoxPlotData(initialDurations), Name: suiteNames[i]},
+			{Value: createBoxPlotData(rollingDurations), Name: suiteNames[i]},
+		}
+		bp.AddSeries(suiteNames[i], data, charts.WithItemStyleOpts(itemStyles[i]))
 	}
 
 	snippet := bp.RenderSnippet()
-	err := os.WriteFile(outputPath+".json", []byte(snippet.Option), 0o644)
+	err := os.WriteFile(filepath.Join(outputDir, benchmarkName+".json"), []byte(snippet.Option), 0o644)
 	if err != nil {
 		return err
 	}
-	file, err := os.Create(outputPath + ".html")
+	file, err := os.Create(filepath.Join(outputDir, benchmarkName+".html"))
 	if err != nil {
 		return err
 	}
