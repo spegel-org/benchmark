@@ -37,10 +37,17 @@ type AnalyzeCmd struct {
 	OutputDir   string `arg:"--output-dir,required"`
 }
 
+type SuiteCmd struct {
+	OutputDir      string `arg:"--output-dir,required"`
+	KubeconfigPath string `arg:"--kubeconfig,env:KUBECONFIG"`
+	Namespace      string `arg:"--namespace" default:"spegel-benchmark"`
+}
+
 type Arguments struct {
 	Generate *GenerateCmd `arg:"subcommand:generate" help:"Generate images for benchmarking."`
 	Measure  *MeasureCmd  `arg:"subcommand:measure" help:"Run benchmark measurement."`
 	Analyze  *AnalyzeCmd  `arg:"subcommand:analyze" help:"Analyze benchmark results."`
+	Suite    *SuiteCmd    `arg:"subcommand:suite" help:"Run the full suite of measurements."`
 }
 
 func main() {
@@ -75,6 +82,11 @@ func run(args Arguments) error {
 		return measure.Measure(ctx, args.Measure.KubeconfigPath, args.Measure.Namespace, args.Measure.OutputDir, args.Measure.Images)
 	case args.Analyze != nil:
 		return analyze.Analyze(ctx, args.Analyze.BaselineDir, args.Analyze.VariantDir, args.Analyze.OutputDir)
+	case args.Suite != nil:
+		if args.Suite.KubeconfigPath == "" {
+			return errors.New("kubeconfig path cannot be empty")
+		}
+		return measure.Suite(ctx, args.Suite.KubeconfigPath, args.Suite.Namespace, args.Suite.OutputDir)
 	default:
 		return errors.New("unknown command")
 	}
