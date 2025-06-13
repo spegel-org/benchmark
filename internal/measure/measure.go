@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -26,7 +27,21 @@ import (
 )
 
 type Result struct {
+	Metadata   Metadata    `json:"metadata"`
 	Benchmarks []Benchmark `json:"benchmarks"`
+}
+
+type Metadata struct {
+	Timestamp         time.Time `json:"timestamp"`
+	KubernetesVersion string    `json:"kubernetesVersion"`
+	Nodes             []Node    `json:"nodes"`
+}
+
+type Node struct {
+	Name         string `json:"name"`
+	InstanceType string `json:"instanceType"`
+	Memory       int64  `json:"memory"`
+	CPU          int64  `json:"cpu"`
 }
 
 type Benchmark struct {
@@ -90,8 +105,38 @@ func run(ctx context.Context, kubeconfigPath, namespace, outputPath string, imag
 		return err
 	}
 
-	ts := time.Now().Unix()
-	runName := fmt.Sprintf("spegel-benchmark-%d", ts)
+	result := Result{
+		Metadata: Metadata{
+			Timestamp: time.Now(),
+		},
+	}
+
+	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(cfg)
+	versionInfo, err := discoveryClient.ServerVersion()
+	if err != nil {
+		return err
+	}
+	result.Metadata.KubernetesVersion = versionInfo.GitVersion
+
+	nodeList, err := cs.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, node := range nodeList.Items {
+		if len(node.Spec.Taints) > 0 {
+			log.Info("skipping node with taint", "name", node.Name)
+			continue
+		}
+		n := Node{
+			Name:         node.Name,
+			InstanceType: node.Labels["node.kubernetes.io/instance-type"],
+			Memory:       node.Status.Capacity.Memory().Value(),
+			CPU:          node.Status.Capacity.Cpu().Value(),
+		}
+		result.Metadata.Nodes = append(result.Metadata.Nodes, n)
+	}
+
+	runName := fmt.Sprintf("spegel-benchmark-%d", result.Metadata.Timestamp.Unix())
 
 	// Create namespace for benchmark.
 	_, err = cs.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
@@ -124,7 +169,6 @@ func run(ctx context.Context, kubeconfigPath, namespace, outputPath string, imag
 			log.Error(err, "could not delete measure daemonset")
 		}
 	}()
-	result := Result{}
 	for _, image := range images {
 		bench, err := measureImagePull(ctx, cs, dc, namespace, runName, image)
 		if err != nil {
