@@ -18,6 +18,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -382,6 +383,7 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 		return nil, err
 	}
 	if kerrors.IsNotFound(err) {
+		maxUnavailable := intstr.FromString("20%")
 		ds := &appsv1.DaemonSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name,
@@ -389,6 +391,11 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 			Spec: appsv1.DaemonSetSpec{
 				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{"app": name},
+				},
+				UpdateStrategy: appsv1.DaemonSetUpdateStrategy{
+					RollingUpdate: &appsv1.RollingUpdateDaemonSet{
+						MaxUnavailable: &maxUnavailable,
+					},
 				},
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
