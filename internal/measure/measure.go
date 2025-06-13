@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/c2h5oh/datasize"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,7 +40,41 @@ type Measurement struct {
 	Duration time.Duration `json:"duration"`
 }
 
-func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, images []string) error {
+func Suite(ctx context.Context, kubeconfigPath, namespace, outputDir string) error {
+	registry := "ghcr.io"
+	repository := "spegel-org/benchmark"
+	layerCounts := []int{1, 4}
+	imageSizes := []datasize.ByteSize{datasize.MB * 10, datasize.MB * 100, datasize.GB}
+
+	for _, layerCount := range layerCounts {
+		for _, imageSize := range imageSizes {
+			log := logr.FromContextOrDiscard(ctx).WithValues("layers", layerCount, "size", imageSize.String())
+			imgs := []string{
+				fmt.Sprintf("%s/%s:v1-%s-%d", registry, repository, imageSize.String(), layerCount),
+				fmt.Sprintf("%s/%s:v2-%s-%d", registry, repository, imageSize.String(), layerCount),
+			}
+			log.Info("measurement started")
+			outputPath := filepath.Join(outputDir, fmt.Sprintf("%s-%d.json", imageSize.String(), layerCount))
+			err := run(ctx, kubeconfigPath, namespace, outputPath, imgs)
+			if err != nil {
+				return err
+			}
+			log.Info("measurement completed")
+
+			// Some delay between tests.
+			time.Sleep(3 * time.Second)
+		}
+	}
+
+	return nil
+}
+
+func Measure(ctx context.Context, kubeconfigPath, namespace, outputDir string, images []string) error {
+	outputPath := filepath.Join(outputDir, fmt.Sprintf("benchmark-%d.json", time.Now().Unix()))
+	return run(ctx, kubeconfigPath, namespace, outputPath, images)
+}
+
+func run(ctx context.Context, kubeconfigPath, namespace, outputPath string, images []string) error {
 	log := logr.FromContextOrDiscard(ctx)
 
 	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
@@ -104,8 +139,11 @@ func Measure(ctx context.Context, kubeconfigPath, namespace, resultDir string, i
 	}
 
 	// Write measurement results.
-	fileName := fmt.Sprintf("benchmark-%d.json", time.Now().Unix())
-	file, err := os.Create(filepath.Join(resultDir, fileName))
+	err = os.MkdirAll(filepath.Dir(outputPath), 0o755)
+	if err != nil {
+		return err
+	}
+	file, err := os.Create(outputPath)
 	if err != nil {
 		return err
 	}
