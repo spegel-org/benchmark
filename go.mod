@@ -10,7 +10,7 @@ require (
 	github.com/go-echarts/go-echarts/v2 v2.6.1
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-containerregistry v0.20.6
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	gonum.org/v1/gonum v0.16.0
 	k8s.io/api v0.33.4
 	k8s.io/apimachinery v0.33.4
