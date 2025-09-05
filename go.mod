@@ -2,7 +2,7 @@ module github.com/spegel-org/benchmark
 
 go 1.24.0
 
-toolchain go1.24.3
+toolchain go1.25.1
 
 require (
 	github.com/alexflint/go-arg v1.6.0
