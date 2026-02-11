@@ -12,9 +12,9 @@ require (
 	github.com/google/go-containerregistry v0.20.7
 	github.com/stretchr/testify v1.11.1
 	gonum.org/v1/gonum v0.17.0
-	k8s.io/api v0.35.0
-	k8s.io/apimachinery v0.35.0
-	k8s.io/client-go v0.35.0
+	k8s.io/api v0.35.1
+	k8s.io/apimachinery v0.35.1
+	k8s.io/client-go v0.35.1
 	sigs.k8s.io/cli-utils v0.37.2
 )
 
