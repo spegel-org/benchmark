@@ -7,7 +7,7 @@ require (
 	github.com/c2h5oh/datasize v0.0.0-20231215233829-aa82cc1e6500
 	github.com/go-echarts/go-echarts/v2 v2.7.0
 	github.com/go-logr/logr v1.4.3
-	github.com/google/go-containerregistry v0.21.0
+	github.com/google/go-containerregistry v0.21.1
 	github.com/stretchr/testify v1.11.1
 	gonum.org/v1/gonum v0.17.0
 	k8s.io/api v0.35.1
