@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,6 +26,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
+	"sigs.k8s.io/yaml"
 )
 
 type Suite struct {
@@ -58,7 +60,7 @@ type Sample struct {
 	Duration time.Duration `json:"duration"`
 }
 
-func RunSuite(ctx context.Context, kubeconfigPath, namespace, outputDir, suiteName string) error {
+func RunSuite(ctx context.Context, kubeconfigPath, namespace, outputDir, suiteName, affinityFile, tolerationsFile string) error {
 	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		return err
@@ -112,7 +114,7 @@ func RunSuite(ctx context.Context, kubeconfigPath, namespace, outputDir, suiteNa
 				fmt.Sprintf("%s/%s:v2-%s-%d", registry, repository, imageSize.String(), layerCount),
 			}
 			log.Info("benchmark started")
-			benchmark, err := benchmark(ctx, kubeconfigPath, namespace, imgs[0], imgs[1])
+			benchmark, err := benchmark(ctx, kubeconfigPath, namespace, imgs[0], imgs[1], affinityFile, tolerationsFile)
 			if err != nil {
 				return err
 			}
@@ -142,8 +144,46 @@ func RunSuite(ctx context.Context, kubeconfigPath, namespace, outputDir, suiteNa
 	return nil
 }
 
-func RunMeasure(ctx context.Context, kubeconfigPath, namespace, outputDir string, images []string) error {
-	benchmark, err := benchmark(ctx, kubeconfigPath, namespace, images[0], images[1])
+// loadAffinityFromFile loads node affinity from a YAML file
+func loadAffinityFromFile(filename string) (*corev1.Affinity, error) {
+	if filename == "" {
+		return nil, nil
+	}
+	
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read affinity file %s: %w", filename, err)
+	}
+	
+	var affinity corev1.Affinity
+	if err := yaml.Unmarshal(data, &affinity); err != nil {
+		return nil, fmt.Errorf("failed to parse affinity YAML: %w", err)
+	}
+	
+	return &affinity, nil
+}
+
+// loadTolerationsFromFile loads tolerations from a YAML file
+func loadTolerationsFromFile(filename string) ([]corev1.Toleration, error) {
+	if filename == "" {
+		return nil, nil
+	}
+	
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read tolerations file %s: %w", filename, err)
+	}
+	
+	var tolerations []corev1.Toleration
+	if err := yaml.Unmarshal(data, &tolerations); err != nil {
+		return nil, fmt.Errorf("failed to parse tolerations YAML: %w", err)
+	}
+	
+	return tolerations, nil
+}
+
+func RunMeasure(ctx context.Context, kubeconfigPath, namespace, outputDir string, images []string, affinityFile, tolerationsFile string) error {
+	benchmark, err := benchmark(ctx, kubeconfigPath, namespace, images[0], images[1], affinityFile, tolerationsFile)
 	if err != nil {
 		return err
 	}
@@ -165,7 +205,7 @@ func RunMeasure(ctx context.Context, kubeconfigPath, namespace, outputDir string
 	return nil
 }
 
-func benchmark(ctx context.Context, kubeconfigPath, namespace, createImage, updateImage string) (Benchmark, error) {
+func benchmark(ctx context.Context, kubeconfigPath, namespace, createImage, updateImage, affinityFile, tolerationsFile string) (Benchmark, error) {
 	log := logr.FromContextOrDiscard(ctx)
 
 	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
@@ -179,6 +219,17 @@ func benchmark(ctx context.Context, kubeconfigPath, namespace, createImage, upda
 	dc, err := dynamic.NewForConfig(cfg)
 	if err != nil {
 		return Benchmark{}, err
+	}
+
+	// Load affinity and tolerations from files
+	affinity, err := loadAffinityFromFile(affinityFile)
+	if err != nil {
+		return Benchmark{}, fmt.Errorf("failed to load affinity: %w", err)
+	}
+
+	tolerations, err := loadTolerationsFromFile(tolerationsFile)
+	if err != nil {
+		return Benchmark{}, fmt.Errorf("failed to load tolerations: %w", err)
 	}
 
 	benchmark := Benchmark{
@@ -213,7 +264,7 @@ func benchmark(ctx context.Context, kubeconfigPath, namespace, createImage, upda
 		}
 	}
 
-	err = clearImages(ctx, cs, dc, namespace, images)
+	err = clearImages(ctx, cs, dc, namespace, images, affinity, tolerations)
 	if err != nil {
 		return Benchmark{}, err
 	}
@@ -228,19 +279,19 @@ func benchmark(ctx context.Context, kubeconfigPath, namespace, createImage, upda
 		}
 	}()
 
-	samples, err := measureImagePull(ctx, cs, dc, namespace, runName, createImage)
+	samples, err := measureImagePull(ctx, cs, dc, namespace, runName, createImage, affinity, tolerations)
 	if err != nil {
 		return Benchmark{}, err
 	}
 	benchmark.Create.Samples = samples
 
-	samples, err = measureImagePull(ctx, cs, dc, namespace, runName, updateImage)
+	samples, err = measureImagePull(ctx, cs, dc, namespace, runName, updateImage, affinity, tolerations)
 	if err != nil {
 		return Benchmark{}, err
 	}
 	benchmark.Update.Samples = samples
 
-	err = clearImages(ctx, cs, dc, namespace, images)
+	err = clearImages(ctx, cs, dc, namespace, images, affinity, tolerations)
 	if err != nil {
 		return Benchmark{}, err
 	}
@@ -248,7 +299,7 @@ func benchmark(ctx context.Context, kubeconfigPath, namespace, createImage, upda
 	return benchmark, nil
 }
 
-func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interface, namespace string, images []string) error {
+func clearImages(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interface, namespace string, images []string, affinity *corev1.Affinity, tolerations []corev1.Toleration) error {
 	log := logr.FromContextOrDiscard(ctx)
 	log.Info("clearing images")
 
@@ -328,6 +379,8 @@ wait $!`, removeImages)
 							},
 						},
 					},
+					Affinity:    affinity,
+					Tolerations: tolerations,
 				},
 			},
 		},
@@ -375,7 +428,7 @@ wait $!`, removeImages)
 	return nil
 }
 
-func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interface, namespace, name, image string) ([]Sample, error) {
+func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.Interface, namespace, name, image string, affinity *corev1.Affinity, tolerations []corev1.Toleration) ([]Sample, error) {
 	log := logr.FromContextOrDiscard(ctx).WithValues("image", image)
 	log.Info("measuring pull performance")
 	ds, err := cs.AppsV1().DaemonSets(namespace).Get(ctx, name, metav1.GetOptions{})
@@ -413,6 +466,8 @@ func measureImagePull(ctx context.Context, cs kubernetes.Interface, dc dynamic.I
 								Stdin: true,
 							},
 						},
+						Affinity:    affinity,
+						Tolerations: tolerations,
 					},
 				},
 			},

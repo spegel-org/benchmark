@@ -1,0 +1,6 @@
+- key: "example-taint-1"
+  operator: "Exists"
+  effect: "NoSchedule"
+- key: "example-taint-2"
+  operator: "Exists"
+  effect: "NoSchedule"

@@ -29,6 +29,8 @@ type MeasureCmd struct {
 	KubeconfigPath string   `arg:"--kubeconfig,env:KUBECONFIG"`
 	Namespace      string   `arg:"--namespace" default:"spegel-benchmark"`
 	Images         []string `arg:"--images,required"`
+	AffinityFile   string   `arg:"--affinity-file" help:"Path to YAML file containing node affinity configuration"`
+	TolerationsFile string  `arg:"--tolerations-file" help:"Path to YAML file containing tolerations configuration"`
 }
 
 type SuiteCmd struct {
@@ -79,12 +81,12 @@ func run(args Arguments) error {
 		if args.Measure.KubeconfigPath == "" {
 			return errors.New("kubeconfig path cannot be empty")
 		}
-		return measure.RunMeasure(ctx, args.Measure.KubeconfigPath, args.Measure.Namespace, args.Measure.OutputDir, args.Measure.Images)
+		return measure.RunMeasure(ctx, args.Measure.KubeconfigPath, args.Measure.Namespace, args.Measure.OutputDir, args.Measure.Images, args.Measure.AffinityFile, args.Measure.TolerationsFile)
 	case args.Suite != nil:
 		if args.Suite.KubeconfigPath == "" {
 			return errors.New("kubeconfig path cannot be empty")
 		}
-		return measure.RunSuite(ctx, args.Suite.KubeconfigPath, args.Suite.Namespace, args.Suite.OutputDir, args.Suite.Name)
+		return measure.RunSuite(ctx, args.Suite.KubeconfigPath, args.Suite.Namespace, args.Suite.OutputDir, args.Suite.Name, "", "")
 	case args.Analyze != nil:
 		return analyze.Analyze(ctx, args.Analyze.SuitePaths, args.Analyze.OutputDir)
 	default:
