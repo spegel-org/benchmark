@@ -3,14 +3,19 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
-    open-pull-requests-limit: 15
-  - package-ecosystem: "gomod"
-    directory: "/"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 15
+      interval: "weekly"
+    open-pull-requests-limit: 20
     groups:
-      k8s:
+      github-actions:
         patterns:
-          - "k8s.io/*"
+          - "*"
+  - package-ecosystem: "gomod"
+    directories:
+      - "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 20
+    groups:
+      gomod:
+        patterns:
+          - "*"
