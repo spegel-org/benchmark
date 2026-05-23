@@ -1,0 +1,14 @@
+nodeAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+    - matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: DoesNotExist
+      - key: crio-runtime
+        operator: NotIn
+        values:
+        - running
+      - key: ipv6
+        operator: Exists
+      - key: slow-bandwidth
+        operator: DoesNotExist
